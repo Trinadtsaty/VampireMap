@@ -6,7 +6,6 @@
   <meta name="color-scheme" content="dark" />
   <title>Карта игровых локаций — Москва</title>
 
-  <!-- ПУТИ К СТИЛЯМ -->
   <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -19,6 +18,9 @@
       <line x1="3" y1="18" x2="21" y2="18"></line>
     </svg>
   </button>
+
+  <!-- Кнопка создания метки для телефонов (скрыта на ПК) -->
+  <button id="mobileAddBtn" class="mobile-add-btn">＋ Добавить метку</button>
 
   <aside id="sidebar">
     <div class="sidebar-header">
@@ -48,6 +50,11 @@
       </div>
       <button id="addBtn" class="btn" type="button">Добавить точку</button>
 
+      <!-- Мобильный прицел -->
+      <div class="sep mobile-only"></div>
+      <div class="section-title mobile-only">Указать на карте</div>
+      <button id="mobilePinBtn" class="btn mobile-only" type="button">🎯 Выбрать место (Прицел)</button>
+
       <div class="sep"></div>
 
       <div class="section-title">Локации на карте (<span id="pointsCount">0</span>)</div>
@@ -55,15 +62,23 @@
     </div>
   </aside>
 
-  <!-- Контейнер для карты (ОБЯЗАТЕЛЬНО ДОЛЖЕН БЫТЬ) -->
   <div id="map"></div>
 
-  <!-- ПУТИ К СКРИПТАМ -->
+  <!-- Оверлей для мобильного прицела -->
+  <div id="mobilePinOverlay">
+    <div class="crosshair">
+      <div class="crosshair-h"></div>
+      <div class="crosshair-v"></div>
+    </div>
+  </div>
+
+  <div id="mobilePinBar">
+    <button id="mobilePinConfirm" class="btn btn-primary" style="font-size: 16px; padding: 15px;">Поставить метку здесь</button>
+    <button id="mobilePinCancel" class="btn" style="margin-top: 8px;">Отмена</button>
+  </div>
+
   <script src="leaflet/dist/leaflet.js"></script>
-
-  <!-- ВОТ ЭТА СТРОКА: -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <script src="script.js"></script>
 </body>
 </html>

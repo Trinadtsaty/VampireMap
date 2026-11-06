@@ -3,20 +3,19 @@
   
   if (typeof L === 'undefined' || typeof window.supabase === 'undefined') return;
 
-  // --- НАСТРОЙКИ SUPABASE ---
   const supabaseUrl = 'https://cuvexievsoldyadbtckc.supabase.co';
-  // Вставь сюда свой Publishable key!
   const supabaseKey = 'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8';
   const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-  // ---------------------------
 
   const MOSCOW_BOUNDS = [[55.5, 37.3], [56.0, 37.9]];
   const MOSCOW_CENTER = [55.751, 37.618];
   const COLORS = ['red', 'blue', 'green', 'yellow', 'black'];
   const COLOR_HEX = { red: '#e03636', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', black: '#15151a' };
 
-  let allPoints = []; // Теперь все точки хранятся тут
+  let allPoints = [];
   const markersById = new Map();
+
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
   const map = L.map('map', {
     center: MOSCOW_CENTER, zoom: 11, minZoom: 10, maxZoom: 18,
@@ -28,17 +27,17 @@
 
   const markerLayer = L.layerGroup().addTo(map);
 
-  // --- ЗАГРУЗКА ИЗ SUPABASE ---
   async function loadPointsFromDB() {
     const { data, error } = await supabase.from('points').select('*');
-    if (error) {
-      console.error('Ошибка загрузки:', error);
-      return [];
-    }
-    return data;
+    if (error) return [];
+    // Фильтруем: показываем точку, если это не игра, или если описание начинается с {1} (или пустое)
+    return data.filter(pt => {
+      if (pt.type !== 'game') return true;
+      const desc = pt.description || '';
+      return !desc.startsWith('{0}');
+    });
   }
 
-  // --- ИКОНКИ ---
   function buildGameIcon() {
     return L.divIcon({
       className: 'vp-marker',
@@ -58,10 +57,13 @@
     });
   }
 
-  // --- ПОПАПЫ ---
   function buildGamePopup(item) {
+    // Убираем тег {1} из отображения
+    let desc = item.description || '';
+    if (desc.startsWith('{1}') || desc.startsWith('{0}')) desc = desc.substring(3).trim();
+
     const img = item.image_url ? `<img src="${item.image_url}" class="vp-image" onerror="this.style.display='none'">` : '';
-    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${item.description || ''}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
+    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${desc}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
   }
 
   function buildUserPopup(item) {
@@ -81,7 +83,6 @@
     </div>`;
   }
 
-  // --- ОТРИСОВКА ---
   function renderAll() {
     markerLayer.clearLayers();
     markersById.clear();
@@ -97,21 +98,14 @@
         m.on('dragend', async function (e) {
           const newPos = e.target.getLatLng();
           const { error } = await supabase.from('points').update({ lat: newPos.lat, lng: newPos.lng }).eq('id', pt.id);
-          if (!error) {
-            pt.lat = newPos.lat;
-            pt.lng = newPos.lng;
-          } else {
-            alert('Ошибка сохранения координат');
-          }
+          if (!error) { pt.lat = newPos.lat; pt.lng = newPos.lng; }
           m.dragging.disable();
           m.setIcon(buildUserIcon(pt.color, false));
         });
       }
-
       m.addTo(markerLayer);
       markersById.set(pt.id, m);
     });
-
     updateSidebarList();
   }
 
@@ -129,21 +123,21 @@
     });
   }
 
-  // --- СОЗДАНИЕ ТОЧКИ ---
-  map.on('click', async (e) => {
-    if (!map.getBounds().contains(e.latlng)) return;
+  // Создание точки (ТОЛЬКО на ПК через двойной клик)
+  if (!isMobile) {
+    map.doubleClickZoom.disable();
+    map.on('dblclick', async (e) => {
+      if (!map.getBounds().contains(e.latlng)) return;
+      const newPoint = { name: 'Метка', lat: e.latlng.lat, lng: e.latlng.lng, color: 'red', type: 'user' };
+      const { data, error } = await supabase.from('points').insert([newPoint]).select();
+      if (!error && data) {
+        allPoints.push(data[0]); renderAll();
+        markersById.get(data[0].id)?.openPopup();
+      }
+    });
+  }
 
-    const newPoint = { name: 'Метка', lat: e.latlng.lat, lng: e.latlng.lng, color: 'red', type: 'user' };
-    const { data, error } = await supabase.from('points').insert([newPoint]).select();
-
-    if (!error && data) {
-      allPoints.push(data[0]);
-      renderAll();
-      markersById.get(data[0].id)?.openPopup();
-    }
-  });
-
-  // --- РЕДАКТИРОВАНИЕ ---
+  // Редактирование
   map.on('popupopen', (e) => {
     const root = e.popup.getElement()?.querySelector('.vp-popup[data-id]');
     if (!root) return;
@@ -153,7 +147,6 @@
 
     const nameInp = root.querySelector('.vp-name');
     let selColor = pt.color;
-
     root.querySelectorAll('.swatch').forEach(btn => { btn.onclick = () => { selColor = btn.dataset.color; }; });
 
     const moveBtn = root.querySelector('.vp-move');
@@ -161,35 +154,26 @@
       moveBtn.onclick = () => {
         map.closePopup();
         const marker = markersById.get(pt.id);
-        if (marker) {
-          marker.dragging.enable();
-          marker.setIcon(buildUserIcon(pt.color, true));
-        }
+        if (marker) { marker.dragging.enable(); marker.setIcon(buildUserIcon(pt.color, true)); }
       };
     }
 
     root.querySelector('.vp-save').onclick = async () => {
       const newName = nameInp.value || 'Метка';
       const { error } = await supabase.from('points').update({ name: newName, color: selColor }).eq('id', pt.id);
-      if (!error) {
-        pt.name = newName; pt.color = selColor;
-        map.closePopup(); renderAll();
-      }
+      if (!error) { pt.name = newName; pt.color = selColor; map.closePopup(); renderAll(); }
     };
 
     root.querySelector('.vp-delete').onclick = async () => {
       const { error } = await supabase.from('points').delete().eq('id', pt.id);
-      if (!error) {
-        allPoints = allPoints.filter(p => p.id != pt.id);
-        map.closePopup(); renderAll();
-      }
+      if (!error) { allPoints = allPoints.filter(p => p.id != pt.id); map.closePopup(); renderAll(); }
     };
   });
 
   document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.add('open');
   document.getElementById('closeSidebar').onclick = () => document.getElementById('sidebar').classList.remove('open');
 
-  // --- ПОИСК И ДОБАВЛЕНИЕ (упрощенно для примера) ---
+  // Поиск по адресу
   document.getElementById('searchAddressBtn').onclick = async function() {
     const query = document.getElementById('addressInput').value.trim();
     if (!query) return;
@@ -203,9 +187,7 @@
         const newPoint = { name: query, lat, lng, color: 'blue', type: 'user' };
         const { data: dbData, error } = await supabase.from('points').insert([newPoint]).select();
         if (!error && dbData) {
-           allPoints.push(dbData[0]);
-           map.setView([lat, lng], 15);
-           renderAll();
+           allPoints.push(dbData[0]); map.setView([lat, lng], 15); renderAll();
            markersById.get(dbData[0].id)?.openPopup();
         }
       }
@@ -224,7 +206,42 @@
     }
   };
 
-  // --- ЗАПУСК ---
+  // Мобильные обработчики
+  if (isMobile) {
+    const mobileOverlay = document.getElementById('mobilePinOverlay');
+    const mobileBar = document.getElementById('mobilePinBar');
+
+    document.getElementById('mobileAddBtn').onclick = () => {
+      document.getElementById('sidebar').classList.add('open');
+    };
+
+    document.getElementById('mobilePinBtn').onclick = () => {
+      document.getElementById('sidebar').classList.remove('open');
+      mobileOverlay.classList.add('active');
+      mobileBar.classList.add('active');
+    };
+
+    document.getElementById('mobilePinConfirm').onclick = async () => {
+      const center = map.getCenter();
+      const newPoint = { name: 'Метка', lat: center.lat, lng: center.lng, color: 'red', type: 'user' };
+
+      mobileOverlay.classList.remove('active');
+      mobileBar.classList.remove('active');
+
+      const { data, error } = await supabase.from('points').insert([newPoint]).select();
+      if (!error && data) {
+        allPoints.push(data[0]); renderAll();
+        markersById.get(data[0].id)?.openPopup();
+      }
+    };
+
+    document.getElementById('mobilePinCancel').onclick = () => {
+      mobileOverlay.classList.remove('active');
+      mobileBar.classList.remove('active');
+      document.getElementById('sidebar').classList.add('open');
+    };
+  }
+
   async function init() {
     allPoints = await loadPointsFromDB();
     renderAll();
