@@ -1,17 +1,21 @@
 (function () {
   'use strict';
   
-  if (typeof L === 'undefined') return;
+  if (typeof L === 'undefined' || typeof window.supabase === 'undefined') return;
+
+  // --- НАСТРОЙКИ SUPABASE ---
+  const supabaseUrl = 'https://cuvexievsoldyadbtckc.supabase.co';
+  // Вставь сюда свой Publishable key!
+  const supabaseKey = 'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8';
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  // ---------------------------
 
   const MOSCOW_BOUNDS = [[55.5, 37.3], [56.0, 37.9]];
   const MOSCOW_CENTER = [55.751, 37.618];
   const COLORS = ['red', 'blue', 'green', 'yellow', 'black'];
   const COLOR_HEX = { red: '#e03636', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', black: '#15151a' };
 
-  let gameLocations = [];
-  let userPoints = [];
-  try { userPoints = JSON.parse(localStorage.getItem('user_points_v1') || '[]'); } catch(e) {}
-
+  let allPoints = []; // Теперь все точки хранятся тут
   const markersById = new Map();
 
   const map = L.map('map', {
@@ -24,23 +28,17 @@
 
   const markerLayer = L.layerGroup().addTo(map);
 
-  async function loadLocations() {
-    const localData = localStorage.getItem('game_locations_v1');
-    if (localData) {
-      try {
-        const parsed = JSON.parse(localData);
-        if (Array.isArray(parsed) && parsed.length > 0) { gameLocations = parsed; return; }
-      } catch (e) {}
+  // --- ЗАГРУЗКА ИЗ SUPABASE ---
+  async function loadPointsFromDB() {
+    const { data, error } = await supabase.from('points').select('*');
+    if (error) {
+      console.error('Ошибка загрузки:', error);
+      return [];
     }
-    try {
-      const response = await fetch('game_locations.json');
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data)) gameLocations = data;
-      }
-    } catch (err) {}
+    return data;
   }
 
+  // --- ИКОНКИ ---
   function buildGameIcon() {
     return L.divIcon({
       className: 'vp-marker',
@@ -49,7 +47,6 @@
     });
   }
 
-  // ДОБАВЛЕН ПАРАМЕТР isMoving (для анимации при перемещении)
   function buildUserIcon(color, isMoving) {
     const hex = COLOR_HEX[color] || COLOR_HEX.red;
     const glow = isMoving ? `0 0 15px ${hex}, 0 0 0 4px rgba(255,255,255,0.4)` : `0 2px 6px rgba(0,0,0,0.4)`;
@@ -61,9 +58,10 @@
     });
   }
 
+  // --- ПОПАПЫ ---
   function buildGamePopup(item) {
-    const img = item.image ? `<img src="${item.image}" class="vp-image" onerror="this.style.display='none'">` : '';
-    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${item.desc}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
+    const img = item.image_url ? `<img src="${item.image_url}" class="vp-image" onerror="this.style.display='none'">` : '';
+    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${item.description || ''}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
   }
 
   function buildUserPopup(item) {
@@ -83,31 +81,35 @@
     </div>`;
   }
 
+  // --- ОТРИСОВКА ---
   function renderAll() {
     markerLayer.clearLayers();
     markersById.clear();
 
-    gameLocations.forEach(loc => {
-      const m = L.marker([loc.lat, loc.lng], { icon: buildGameIcon() }).bindPopup(buildGamePopup(loc), { minWidth: 220 });
-      m.addTo(markerLayer); markersById.set(loc.id, m);
-    });
+    allPoints.forEach(pt => {
+      const isGame = pt.type === 'game';
+      const m = L.marker([pt.lat, pt.lng], {
+        icon: isGame ? buildGameIcon() : buildUserIcon(pt.color, false),
+        draggable: false
+      }).bindPopup(isGame ? buildGamePopup(pt) : buildUserPopup(pt), { minWidth: 220 });
 
-    userPoints.forEach(pt => {
-      // draggable: false по умолчанию!
-      const m = L.marker([pt.lat, pt.lng], { icon: buildUserIcon(pt.color, false), draggable: false }).bindPopup(buildUserPopup(pt));
+      if (!isGame) {
+        m.on('dragend', async function (e) {
+          const newPos = e.target.getLatLng();
+          const { error } = await supabase.from('points').update({ lat: newPos.lat, lng: newPos.lng }).eq('id', pt.id);
+          if (!error) {
+            pt.lat = newPos.lat;
+            pt.lng = newPos.lng;
+          } else {
+            alert('Ошибка сохранения координат');
+          }
+          m.dragging.disable();
+          m.setIcon(buildUserIcon(pt.color, false));
+        });
+      }
 
-      // Когда отпускаем маркер
-      m.on('dragend', function (e) {
-        const newPos = e.target.getLatLng();
-        pt.lat = newPos.lat; pt.lng = newPos.lng;
-        try { localStorage.setItem('user_points_v1', JSON.stringify(userPoints)); } catch(err) {}
-
-        // Фиксируем точку обратно
-        m.dragging.disable();
-        m.setIcon(buildUserIcon(pt.color, false));
-      });
-
-      m.addTo(markerLayer); markersById.set(pt.id, m);
+      m.addTo(markerLayer);
+      markersById.set(pt.id, m);
     });
 
     updateSidebarList();
@@ -115,32 +117,38 @@
 
   function updateSidebarList() {
     const list = document.getElementById('pointsList');
-    const all = [...gameLocations, ...userPoints];
-    document.getElementById('pointsCount').textContent = all.length;
-    if (all.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;">Пусто</div>'; return; }
+    document.getElementById('pointsCount').textContent = allPoints.length;
+    if (allPoints.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;">Пусто</div>'; return; }
 
-    list.innerHTML = all.map(p => `<div class="point-item" data-id="${p.id}"><div class="point-info"><span style="color:#ff6b6b;">${p.type === 'game' ? '⚔' : '📍'}</span><div class="point-name-text">${p.name}</div></div></div>`).join('');
+    list.innerHTML = allPoints.map(p => `<div class="point-item" data-id="${p.id}"><div class="point-info"><span style="color:#ff6b6b;">${p.type === 'game' ? '⚔' : '📍'}</span><div class="point-name-text">${p.name}</div></div></div>`).join('');
     list.querySelectorAll('.point-item').forEach(el => {
       el.addEventListener('click', function() {
-        const item = all.find(p => p.id == this.getAttribute('data-id'));
+        const item = allPoints.find(p => p.id == this.getAttribute('data-id'));
         if (item) { map.setView([item.lat, item.lng], 15); markersById.get(item.id)?.openPopup(); }
       });
     });
   }
 
-  map.on('click', (e) => {
+  // --- СОЗДАНИЕ ТОЧКИ ---
+  map.on('click', async (e) => {
     if (!map.getBounds().contains(e.latlng)) return;
-    const newPoint = { id: 'usr-' + Date.now(), type: 'user', lat: e.latlng.lat, lng: e.latlng.lng, name: 'Метка', color: 'red' };
-    userPoints.push(newPoint);
-    try { localStorage.setItem('user_points_v1', JSON.stringify(userPoints)); } catch(e) {}
-    renderAll(); markersById.get(newPoint.id)?.openPopup();
+
+    const newPoint = { name: 'Метка', lat: e.latlng.lat, lng: e.latlng.lng, color: 'red', type: 'user' };
+    const { data, error } = await supabase.from('points').insert([newPoint]).select();
+
+    if (!error && data) {
+      allPoints.push(data[0]);
+      renderAll();
+      markersById.get(data[0].id)?.openPopup();
+    }
   });
 
+  // --- РЕДАКТИРОВАНИЕ ---
   map.on('popupopen', (e) => {
     const root = e.popup.getElement()?.querySelector('.vp-popup[data-id]');
     if (!root) return;
     const id = root.getAttribute('data-id');
-    const pt = userPoints.find(p => p.id === id);
+    const pt = allPoints.find(p => p.id == id);
     if (!pt) return;
 
     const nameInp = root.querySelector('.vp-name');
@@ -148,37 +156,81 @@
 
     root.querySelectorAll('.swatch').forEach(btn => { btn.onclick = () => { selColor = btn.dataset.color; }; });
 
-    // КНОПКА "ДВИГАТЬ"
     const moveBtn = root.querySelector('.vp-move');
     if (moveBtn) {
       moveBtn.onclick = () => {
         map.closePopup();
-        const marker = markersById.get(id);
+        const marker = markersById.get(pt.id);
         if (marker) {
-          marker.dragging.enable(); // Включаем перетаскивание
-          marker.setIcon(buildUserIcon(pt.color, true)); // Пульсирующий эффект
+          marker.dragging.enable();
+          marker.setIcon(buildUserIcon(pt.color, true));
         }
       };
     }
 
-    root.querySelector('.vp-save').onclick = () => {
-      pt.name = nameInp.value || 'Метка'; pt.color = selColor;
-      try { localStorage.setItem('user_points_v1', JSON.stringify(userPoints)); } catch(e) {}
-      map.closePopup(); renderAll();
+    root.querySelector('.vp-save').onclick = async () => {
+      const newName = nameInp.value || 'Метка';
+      const { error } = await supabase.from('points').update({ name: newName, color: selColor }).eq('id', pt.id);
+      if (!error) {
+        pt.name = newName; pt.color = selColor;
+        map.closePopup(); renderAll();
+      }
     };
-    root.querySelector('.vp-delete').onclick = () => {
-      userPoints = userPoints.filter(p => p.id !== id);
-      try { localStorage.setItem('user_points_v1', JSON.stringify(userPoints)); } catch(e) {}
-      map.closePopup(); renderAll();
+
+    root.querySelector('.vp-delete').onclick = async () => {
+      const { error } = await supabase.from('points').delete().eq('id', pt.id);
+      if (!error) {
+        allPoints = allPoints.filter(p => p.id != pt.id);
+        map.closePopup(); renderAll();
+      }
     };
   });
 
   document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.add('open');
   document.getElementById('closeSidebar').onclick = () => document.getElementById('sidebar').classList.remove('open');
 
-  loadLocations().then(() => {
+  // --- ПОИСК И ДОБАВЛЕНИЕ (упрощенно для примера) ---
+  document.getElementById('searchAddressBtn').onclick = async function() {
+    const query = document.getElementById('addressInput').value.trim();
+    if (!query) return;
+    const btn = this; btn.textContent = '...'; btn.disabled = true;
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent('Москва, ' + query)}&limit=1`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
+        const newPoint = { name: query, lat, lng, color: 'blue', type: 'user' };
+        const { data: dbData, error } = await supabase.from('points').insert([newPoint]).select();
+        if (!error && dbData) {
+           allPoints.push(dbData[0]);
+           map.setView([lat, lng], 15);
+           renderAll();
+           markersById.get(dbData[0].id)?.openPopup();
+        }
+      }
+    } catch(e) {} finally { btn.textContent = 'Найти на карте'; btn.disabled = false; }
+  };
+
+  document.getElementById('addBtn').onclick = async () => {
+    const lat = parseFloat(document.getElementById('lat').value);
+    const lng = parseFloat(document.getElementById('lng').value);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const newPoint = { name: 'Метка', lat, lng, color: 'red', type: 'user' };
+    const { data, error } = await supabase.from('points').insert([newPoint]).select();
+    if (!error && data) {
+      allPoints.push(data[0]); map.setView([lat, lng], 13); renderAll();
+      markersById.get(data[0].id)?.openPopup();
+    }
+  };
+
+  // --- ЗАПУСК ---
+  async function init() {
+    allPoints = await loadPointsFromDB();
     renderAll();
     setTimeout(() => map.invalidateSize(), 100);
-  });
+  }
+
+  init();
 
 })();
