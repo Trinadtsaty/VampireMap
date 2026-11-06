@@ -7,6 +7,7 @@
   <title>Админ-панель — Управление локациями</title>
 
   <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -28,6 +29,11 @@
       </div>
       <div class="sidebar-content">
 
+        <div class="section-title">Инструменты</div>
+        <button id="adminStartDrawLineBtn" class="btn" type="button">✏️ Нарисовать линию</button>
+
+        <div class="sep"></div>
+
         <div class="section-title">Поиск по адресу</div>
         <div class="field" style="display: flex; gap: 5px;">
           <input id="adminAddressInput" type="text" placeholder="Москва, ул. Тверская, 1" style="flex: 1;" />
@@ -47,19 +53,39 @@
           <div class="field"><label>Долгота</label><input id="adminLng" type="number" step="0.0001" /></div>
         </div>
 
-        <!-- Чекбокс видимости -->
-        <div class="field" style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
-          <input type="checkbox" id="adminVisible" checked style="width: auto; margin: 0;" />
-          <label for="adminVisible" style="margin: 0; font-size: 13px; color: #fff; cursor: pointer;">Видна игрокам</label>
+        <div class="row">
+          <div class="field" style="flex: 1;">
+            <label>Цвет метки</label>
+            <select id="adminColor" style="width:100%; padding:9px; border-radius:8px; background:#0c0c11; color:#fff; border:1px solid #2a2a35;">
+              <option value="red">Красный</option>
+              <option value="blue">Синий</option>
+              <option value="green">Зелёный</option>
+              <option value="yellow">Жёлтый</option>
+              <option value="black">Чёрный</option>
+            </select>
+          </div>
+          <div class="field" style="flex: 1; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="adminVisible" checked style="width: 18px; height: 18px; accent-color: #c01818;" />
+            <label for="adminVisible" style="margin: 0; font-size: 13px; color: #fff;">Видна игрокам</label>
+          </div>
         </div>
 
         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button id="adminMoveBtn" class="btn" type="button" style="flex: 1;" title="Включить перетаскивание маркера">✋ Двигать</button>
-          <button id="adminMobilePinBtn" class="btn" type="button" style="flex: 1;" title="Режим прицела (для телефона)">🎯 Прицел</button>
+          <button id="adminMoveBtn" class="btn" type="button" style="flex: 1;" title="Включить перетаскивание">✋ Двигать</button>
+          <button id="adminMobilePinBtn" class="btn" type="button" style="flex: 1;" title="Режим прицела">🎯 Прицел</button>
         </div>
 
         <button id="adminSaveBtn" class="btn btn-primary" type="button">Сохранить локацию</button>
         <button id="adminCancelBtn" class="btn" type="button" style="display:none; margin-top: 5px;">Отмена</button>
+
+        <div class="sep"></div>
+
+        <div class="section-title">Импорт / Экспорт</div>
+        <div class="row">
+          <button id="downloadTemplateBtn" class="btn" type="button">Скачать шаблон</button>
+          <button id="importBtn" class="btn" type="button">Загрузить JSON</button>
+        </div>
+        <input id="importFile" type="file" accept=".json" hidden />
 
         <div class="sep"></div>
 
@@ -69,6 +95,20 @@
     </aside>
 
     <div id="map" style="margin-left: 320px;"></div>
+
+    <!-- Панель линий -->
+    <div id="linesPanel" style="display: none; margin-left: 320px;">
+      <h3>Линии на карте</h3>
+      <div class="field" style="margin-bottom: 10px;">
+        <label>Цвет новой линии</label>
+        <select id="lineColorSelect" style="width:100%; padding:5px; border-radius:4px; background:#000; color:#fff; border:1px solid #333;">
+          <option value="red">Красный</option>
+          <option value="blue">Синий</option>
+          <option value="green">Зелёный</option>
+        </select>
+      </div>
+      <div id="linesList"></div>
+    </div>
   </div>
 
   <div id="mobilePinOverlay">
@@ -84,6 +124,7 @@
   </div>
 
   <script src="leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="admin.js"></script>
 </body>

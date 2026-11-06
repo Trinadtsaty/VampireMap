@@ -7,11 +7,12 @@
   <title>Карта игровых локаций — Москва</title>
 
   <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <button id="menuToggle" class="menu-toggle" title="Открыть меню">
+  <button id="menuToggle" class="menu-toggle" title="Меню">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <line x1="3" y1="12" x2="21" y2="12"></line>
       <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -19,7 +20,6 @@
     </svg>
   </button>
 
-  <!-- Кнопка создания метки для телефонов -->
   <button id="mobileAddBtn" class="mobile-add-btn">＋ Добавить метку</button>
 
   <aside id="sidebar">
@@ -29,6 +29,12 @@
     </div>
 
     <div class="sidebar-content">
+      <div class="section-title">Инструменты</div>
+      <button id="startDrawLineBtn" class="btn" type="button">✏️ Нарисовать линию</button>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 5px;">Выберите цвет линии на панели справа.</div>
+
+      <div class="sep"></div>
+
       <div class="section-title">Поиск по адресу</div>
       <div class="field">
         <input id="addressInput" type="text" placeholder="Например: ул. Тверская, 1" />
@@ -63,6 +69,20 @@
 
   <div id="map"></div>
 
+  <!-- Панель линий -->
+  <div id="linesPanel" style="display: none;">
+    <h3>Линии на карте</h3>
+    <div class="field" style="margin-bottom: 10px;">
+      <label>Цвет новой линии</label>
+      <select id="lineColorSelect">
+        <option value="red">Красный</option>
+        <option value="blue">Синий</option>
+        <option value="green">Зелёный</option>
+      </select>
+    </div>
+    <div id="linesList"></div>
+  </div>
+
   <div id="mobilePinOverlay">
     <div class="crosshair">
       <div class="crosshair-h"></div>
@@ -76,6 +96,7 @@
   </div>
 
   <script src="leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>

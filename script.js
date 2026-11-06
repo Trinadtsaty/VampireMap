@@ -11,8 +11,12 @@
   const MOSCOW_CENTER = [55.751, 37.618];
   const COLORS = ['red', 'blue', 'green', 'yellow', 'black'];
   const COLOR_HEX = { red: '#e03636', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', black: '#15151a' };
+  const LINE_COLORS = { red: '#ff4444', blue: '#3b82f6', green: '#22c55e' };
 
   let allPoints = [];
+  let drawnLines = []; // Хэш линий
+  let lineIdCounter = 1;
+
   const markersById = new Map();
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
@@ -25,22 +29,84 @@
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
 
   const markerLayer = L.layerGroup().addTo(map);
+  const lineLayer = L.layerGroup().addTo(map);
 
+  // ================= ЛИНИИ И РИСОВАНИЕ =================
+  const linesPanel = document.getElementById('linesPanel');
+  const linesList = document.getElementById('linesList');
+
+  // Показываем панель линий всегда, если есть линии или мы в режиме рисования
+  function updateLinesUI() {
+    if (drawnLines.length > 0) {
+      linesPanel.style.display = 'block';
+    } else {
+      linesPanel.style.display = 'none';
+    }
+
+    linesList.innerHTML = drawnLines.map(line => `
+      <div class="line-item">
+        <span style="color: ${LINE_COLORS[line.color]}">Линия ${line.id}</span>
+        <button onclick="deleteLine(${line.id})">✕</button>
+      </div>
+    `).join('');
+  }
+
+  window.deleteLine = function(id) {
+    drawnLines = drawnLines.filter(l => l.id !== id);
+    lineLayer.clearLayers();
+    drawnLines.forEach(l => {
+      L.polyline([[l.lat1, l.lng1], [l.lat2, l.lng2]], { color: LINE_COLORS[l.color], weight: 4, dashArray: '5, 5' }).addTo(lineLayer);
+    });
+    updateLinesUI();
+  };
+
+  document.getElementById('startDrawLineBtn').onclick = () => {
+    document.getElementById('sidebar').classList.remove('open');
+    const color = document.getElementById('lineColorSelect').value;
+
+    // Включаем режим рисования одной линии
+    const drawer = new L.Draw.Polyline(map, {
+      shapeOptions: { color: LINE_COLORS[color], weight: 4, dashArray: '5, 5' },
+      maxPoints: 2 // Только 2 точки для прямой
+    });
+    drawer.enable();
+
+    map.once(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      const latlngs = layer.getLatLngs();
+
+      if (latlngs.length === 2) {
+        const line = {
+          id: lineIdCounter++,
+          lat1: latlngs[0].lat, lng1: latlngs[0].lng,
+          lat2: latlngs[1].lat, lng2: latlngs[1].lng,
+          color: color
+        };
+        drawnLines.push(line);
+        lineLayer.clearLayers();
+        drawnLines.forEach(l => {
+          L.polyline([[l.lat1, l.lng1], [l.lat2, l.lng2]], { color: LINE_COLORS[l.color], weight: 4, dashArray: '5, 5' }).addTo(lineLayer);
+        });
+        updateLinesUI();
+      }
+    });
+  };
+
+  // ================= ТОЧКИ =================
   async function loadPointsFromDB() {
     const { data, error } = await supabase.from('points').select('*');
     if (error) return [];
-    // Фильтруем по префиксу {0}
     return data.filter(pt => {
       if (pt.type !== 'game') return true;
-      const desc = pt.description || '';
-      return !desc.startsWith('{0}');
+      return !(pt.description || '').startsWith('{0}');
     });
   }
 
-  function buildGameIcon() {
+  function buildGameIcon(color) {
+    const hex = COLOR_HEX[color] || '#8f1212';
     return L.divIcon({
       className: 'vp-marker',
-      html: `<div style="width:24px; height:24px; background:#8f1212; border:2px solid #ff4444; transform:rotate(45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px #ff0000;"><span style="transform:rotate(-45deg); font-size:12px; color:white;">⚔</span></div>`,
+      html: `<div style="width:24px; height:24px; background:${hex}; border:2px solid #fff; transform:rotate(45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px ${hex};"><span style="transform:rotate(-45deg); font-size:12px; color:white;">⚔</span></div>`,
       iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
     });
   }
@@ -60,7 +126,7 @@
     let desc = item.description || '';
     if (desc.startsWith('{1}') || desc.startsWith('{0}')) desc = desc.substring(3).trim();
     const img = item.image_url ? `<img src="${item.image_url}" class="vp-image" onerror="this.style.display='none'">` : '';
-    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${desc}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
+    return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:${COLOR_HEX[item.color] || '#ff6b6b'};">${item.name}</div><div class="vp-desc">${desc}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
   }
 
   function buildUserPopup(item) {
@@ -86,7 +152,7 @@
     allPoints.forEach(pt => {
       const isGame = pt.type === 'game';
       const m = L.marker([pt.lat, pt.lng], {
-        icon: isGame ? buildGameIcon() : buildUserIcon(pt.color, false),
+        icon: isGame ? buildGameIcon(pt.color) : buildUserIcon(pt.color, false),
         draggable: false
       }).bindPopup(isGame ? buildGamePopup(pt) : buildUserPopup(pt), { minWidth: 220 });
 
@@ -110,7 +176,7 @@
     document.getElementById('pointsCount').textContent = allPoints.length;
     if (allPoints.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;">Пусто</div>'; return; }
 
-    list.innerHTML = allPoints.map(p => `<div class="point-item" data-id="${p.id}"><div class="point-info"><span style="color:#ff6b6b;">${p.type === 'game' ? '⚔' : '📍'}</span><div class="point-name-text">${p.name}</div></div></div>`).join('');
+    list.innerHTML = allPoints.map(p => `<div class="point-item" data-id="${p.id}"><div class="point-info"><span style="color:${COLOR_HEX[p.color] || '#ff6b6b'};">${p.type === 'game' ? '⚔' : '📍'}</span><div class="point-name-text">${p.name}</div></div></div>`).join('');
     list.querySelectorAll('.point-item').forEach(el => {
       el.addEventListener('click', function() {
         const item = allPoints.find(p => p.id == this.getAttribute('data-id'));
@@ -119,6 +185,7 @@
     });
   }
 
+  // Логика клика (ПК)
   if (!isMobile) {
     map.doubleClickZoom.disable();
     map.on('dblclick', async (e) => {
@@ -233,6 +300,7 @@
   async function init() {
     allPoints = await loadPointsFromDB();
     renderAll();
+    updateLinesUI(); // Показываем список линий (если есть)
     setTimeout(() => map.invalidateSize(), 100);
   }
 
