@@ -14,7 +14,6 @@
 
   let allPoints = [];
   const markersById = new Map();
-
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
   const map = L.map('map', {
@@ -30,7 +29,7 @@
   async function loadPointsFromDB() {
     const { data, error } = await supabase.from('points').select('*');
     if (error) return [];
-    // Фильтруем: показываем точку, если это не игра, или если описание начинается с {1} (или пустое)
+    // Фильтруем по префиксу {0}
     return data.filter(pt => {
       if (pt.type !== 'game') return true;
       const desc = pt.description || '';
@@ -58,10 +57,8 @@
   }
 
   function buildGamePopup(item) {
-    // Убираем тег {1} из отображения
     let desc = item.description || '';
     if (desc.startsWith('{1}') || desc.startsWith('{0}')) desc = desc.substring(3).trim();
-
     const img = item.image_url ? `<img src="${item.image_url}" class="vp-image" onerror="this.style.display='none'">` : '';
     return `<div class="vp-popup">${img}<div style="font-weight:600; font-size:14px; color:#ff6b6b;">${item.name}</div><div class="vp-desc">${desc}</div><div style="font-size:10px; color:var(--muted); text-align:center;">📍 Локация рассказчика</div></div>`;
   }
@@ -86,7 +83,6 @@
   function renderAll() {
     markerLayer.clearLayers();
     markersById.clear();
-
     allPoints.forEach(pt => {
       const isGame = pt.type === 'game';
       const m = L.marker([pt.lat, pt.lng], {
@@ -123,7 +119,6 @@
     });
   }
 
-  // Создание точки (ТОЛЬКО на ПК через двойной клик)
   if (!isMobile) {
     map.doubleClickZoom.disable();
     map.on('dblclick', async (e) => {
@@ -137,7 +132,6 @@
     });
   }
 
-  // Редактирование
   map.on('popupopen', (e) => {
     const root = e.popup.getElement()?.querySelector('.vp-popup[data-id]');
     if (!root) return;
@@ -173,7 +167,6 @@
   document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.add('open');
   document.getElementById('closeSidebar').onclick = () => document.getElementById('sidebar').classList.remove('open');
 
-  // Поиск по адресу
   document.getElementById('searchAddressBtn').onclick = async function() {
     const query = document.getElementById('addressInput').value.trim();
     if (!query) return;
@@ -206,14 +199,11 @@
     }
   };
 
-  // Мобильные обработчики
   if (isMobile) {
     const mobileOverlay = document.getElementById('mobilePinOverlay');
     const mobileBar = document.getElementById('mobilePinBar');
 
-    document.getElementById('mobileAddBtn').onclick = () => {
-      document.getElementById('sidebar').classList.add('open');
-    };
+    document.getElementById('mobileAddBtn').onclick = () => document.getElementById('sidebar').classList.add('open');
 
     document.getElementById('mobilePinBtn').onclick = () => {
       document.getElementById('sidebar').classList.remove('open');
@@ -224,10 +214,8 @@
     document.getElementById('mobilePinConfirm').onclick = async () => {
       const center = map.getCenter();
       const newPoint = { name: 'Метка', lat: center.lat, lng: center.lng, color: 'red', type: 'user' };
-
       mobileOverlay.classList.remove('active');
       mobileBar.classList.remove('active');
-
       const { data, error } = await supabase.from('points').insert([newPoint]).select();
       if (!error && data) {
         allPoints.push(data[0]); renderAll();
