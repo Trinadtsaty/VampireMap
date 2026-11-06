@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="color-scheme" content="dark" />
+  <title>Админ-панель — Управление локациями</title>
+
+  <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Экран входа -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <h2>Вход в Админку</h2>
+      <div class="field"><input id="loginUser" type="text" placeholder="Логин" value="admin" /></div>
+      <div class="field"><input id="loginPass" type="password" placeholder="Пароль" /></div>
+      <button id="loginBtn" class="btn btn-primary">Войти</button>
+    </div>
+  </div>
+
+  <!-- Сама админка -->
+  <div id="adminPanel" style="display: none;">
+    <aside id="sidebar" class="open" style="transform: translateX(0);">
+      <div class="sidebar-header">
+        <h1>Управление</h1>
+        <a href="index.html" class="btn-close" style="text-decoration:none;" title="На карту">↩</a>
+      </div>
+      <div class="sidebar-content">
+
+        <!-- Поиск по адресу (НОВОЕ) -->
+        <div class="section-title">Поиск по адресу</div>
+        <div class="field" style="display: flex; gap: 5px;">
+          <input id="adminAddressInput" type="text" placeholder="Москва, ул. Тверская, 1" style="flex: 1;" />
+          <button id="adminSearchBtn" class="btn" style="width: 44px; padding: 0;">🔍</button>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="section-title">Добавить / Изменить</div>
+        <input type="hidden" id="editId" />
+        <div class="field"><input id="adminName" type="text" placeholder="Название локации" /></div>
+        <div class="field"><input id="adminDesc" type="text" placeholder="Описание (текст)" /></div>
+        <div class="field"><input id="adminImg" type="text" placeholder="Ссылка на картинку (Google Диск)" /></div>
+
+        <div class="row">
+          <div class="field"><label>Широта</label><input id="adminLat" type="number" step="0.0001" /></div>
+          <div class="field"><label>Долгота</label><input id="adminLng" type="number" step="0.0001" /></div>
+        </div>
+
+        <!-- Кнопки управления координатами (НОВОЕ) -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button id="adminMoveBtn" class="btn" type="button" style="flex: 1;" title="Включить перетаскивание маркера">✋ Двигать</button>
+          <button id="adminMobilePinBtn" class="btn" type="button" style="flex: 1;" title="Режим прицела (для телефона)">🎯 Прицел</button>
+        </div>
+
+        <button id="adminSaveBtn" class="btn btn-primary" type="button">Сохранить локацию</button>
+        <button id="adminCancelBtn" class="btn" type="button" style="display:none; margin-top: 5px;">Отмена</button>
+
+        <div class="sep"></div>
+
+        <div class="section-title">Список локаций</div>
+        <div id="adminList" style="max-height: 250px; overflow-y: auto;"></div>
+
+        <div class="sep"></div>
+        <button id="exportBtn" class="btn" type="button">Скачать JSON</button>
+        <input id="importFile" type="file" accept=".json" hidden />
+        <button id="importBtn" class="btn" type="button" style="margin-top:5px;">Загрузить JSON</button>
+      </div>
+    </aside>
+
+    <div id="map" style="margin-left: 320px;"></div>
+  </div>
+
+  <!-- Оверлей для мобильного режима (НОВОЕ) -->
+  <div id="mobilePinOverlay">
+    <div class="crosshair">
+      <div class="crosshair-h"></div>
+      <div class="crosshair-v"></div>
+    </div>
+  </div>
+
+  <div id="mobilePinBar">
+    <button id="mobilePinConfirm" class="btn btn-primary" style="font-size: 16px; padding: 15px;">Подтвердить локацию</button>
+    <button id="mobilePinCancel" class="btn" style="margin-top: 8px;">Отмена</button>
+  </div>
+
+  <script src="leaflet/dist/leaflet.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

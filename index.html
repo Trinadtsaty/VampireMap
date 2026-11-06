@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="color-scheme" content="dark" />
+  <title>Карта игровых локаций — Москва</title>
+
+  <!-- ПУТИ К СТИЛЯМ -->
+  <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <button id="menuToggle" class="menu-toggle" title="Открыть меню">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h1>Игровые локации</h1>
+      <button id="closeSidebar" class="btn-close">✕</button>
+    </div>
+
+    <div class="sidebar-content">
+      <div class="section-title">Поиск по адресу</div>
+      <div class="field">
+        <input id="addressInput" type="text" placeholder="Например: ул. Тверская, 1" />
+      </div>
+      <button id="searchAddressBtn" class="btn btn-primary" type="button">Найти на карте</button>
+
+      <div class="sep"></div>
+
+      <div class="section-title">Своя точка (по координатам)</div>
+      <div class="row">
+        <div class="field">
+          <label for="lat">Широта</label>
+          <input id="lat" type="number" step="0.0001" value="55.7500" />
+        </div>
+        <div class="field">
+          <label for="lng">Долгота</label>
+          <input id="lng" type="number" step="0.0001" value="37.6100" />
+        </div>
+      </div>
+      <button id="addBtn" class="btn" type="button">Добавить точку</button>
+
+      <div class="sep"></div>
+
+      <div class="section-title">Локации на карте (<span id="pointsCount">0</span>)</div>
+      <div id="pointsList" class="points-list"></div>
+    </div>
+  </aside>
+
+  <!-- Контейнер для карты (ОБЯЗАТЕЛЬНО ДОЛЖЕН БЫТЬ) -->
+  <div id="map"></div>
+
+  <!-- ПУТИ К СКРИПТАМ -->
+  <script src="leaflet/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
