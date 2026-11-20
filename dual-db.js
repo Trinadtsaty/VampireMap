@@ -35,6 +35,8 @@
   const stamp=r=>Date.parse(r.updated_at || r.created_at || '') || 0;
   const compare=(a,b)=>stamp(a)-stamp(b) || revision(a)-revision(b) || Number(!!a.deleted_at)-Number(!!b.deleted_at);
   const activeTables=new Set();
+  let authorizedWriter = false;
+  let authorizedBoth = false;
   let checking=false;
   function merge(rows){const map=new Map(); rows.forEach(r=>{const k=String(r.id),old=map.get(k);if(!old||compare(r,old)>0)map.set(k,r);});return [...map.values()];}
   function update(table,row){state.cache[table]=merge([...(state.cache[table]||[]),row]);}
@@ -55,6 +57,7 @@
   }
   async function remove(table,id){const old=(state.cache[table]||[]).find(r=>String(r.id)===String(id));if(!old)return {data:null,error:Error('Сначала загрузите запись для удаления')};return put(table,{...old,deleted_at:new Date().toISOString()});}
   async function flush(){
+    if(!authorizedWriter){log('SYNC_DEFERRED',{reason:'read-only-page; sign in through admin',pending:state.outbox.length});return;}
     if(running||!navigator.onLine){log('SYNC_DEFERRED',{reason:running?'already-running':'offline',pending:state.outbox.length});return;}running=true;const failures=[];
     log('SYNC_START',{pending:state.outbox.length});
     try{
@@ -81,7 +84,7 @@
     }catch(e){log('DB_READ_FAILED',{table,provider:targets[i][0],...safeError(e),durationMs:Date.now()-started},'error');failures.push(`${targets[i][0]}: ${e.message}`);return [];}}));
     state.cache[table]=merge([...(state.cache[table]||[]),...responses.flat(),...state.outbox.filter(o=>o.table===table).map(o=>o.row)]);
     // Reconcile only complete successful snapshots; never interpret an outage as an empty DB.
-    if(!failures.length){
+    if(!failures.length && authorizedBoth){
       const winners=merge(responses.flat());
       for(const row of winners){
         const acked=responses.map(rows=>{const existing=rows.find(r=>String(r.id)===String(row.id));return !!existing && compare(existing,row)>=0;});
@@ -105,7 +108,7 @@
     return builder;
   }
   // Public authentication helpers; owners must sign in separately on each provider.
-  async function signIn(email,password){return Promise.all(clients.map(async(c,i)=>{log('AUTH_START',{provider:targets[i][0]});const result=await c.auth.signInWithPassword({email,password});log(result.error?'AUTH_FAILED':'AUTH_OK',{provider:targets[i][0],...(result.error?safeError(result.error):{})},result.error?'error':'info');return {provider:targets[i][0],error:result.error};}));}
+  async function signIn(email,password){const results=await Promise.all(clients.map(async(c,i)=>{log('AUTH_START',{provider:targets[i][0]});const result=await c.auth.signInWithPassword({email,password});log(result.error?'AUTH_FAILED':'AUTH_OK',{provider:targets[i][0],...(result.error?safeError(result.error):{})},result.error?'error':'info');return {provider:targets[i][0],error:result.error};}));authorizedWriter=results.some(r=>!r.error);authorizedBoth=results.every(r=>!r.error);return results;}
   window.VampireDB={read,put,remove,from,flush,getStatus,signIn,hasPending:(t,id)=>state.outbox.some(o=>o.table===t&&String(o.row.id)===String(id))};
   async function checkAll(){
     if(checking || !navigator.onLine)return;checking=true;

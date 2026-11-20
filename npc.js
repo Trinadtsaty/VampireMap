@@ -48,7 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const blank = () => ({ id: uid(), schema_version: 1, ruleset: 'V20', fields: clone(defaults), ratings: Object.fromEntries(baseDots.filter(e => e.dataset.type === 'attr').map(e => [`attr.${e.dataset.name}`, 1])), lists: { disciplines: [], facts: [], merits: [], flaws: [], talent: [], skill: [], knowledge: [] }, health: [0,0,0,0,0,0,0], portrait: null });
   const current = () => store.characters.find(c => c.id === store.active);
-  const status = text => { $('#saveStatus').textContent = text; };
+  let lastStatus = '';
+  const status = text => { if (text !== lastStatus) { window.VampireLog?.('NPC_SAVE_STATUS', {message:text}); lastStatus = text; } };
   let recoveryPending = null, localError = '', cloudError = '', fetching = true;
   let snapshots = new Map();
   const changedDuringFetch = new Set(), knownIDs = new Set(), confirmed = new Map(), revisions = new Map();
