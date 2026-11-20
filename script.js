@@ -1,11 +1,38 @@
 (function () {
   'use strict';
   
-  if (typeof L === 'undefined' || typeof window.supabase === 'undefined') return;
+  const supabase = window.VampireDB;
+  const dbStatus = document.getElementById('dbStatus');
+  let lastDBStatus = supabase && typeof supabase.getStatus === 'function' ? supabase.getStatus() : null;
 
-  const supabaseUrl = 'https://cuvexievsoldyadbtckc.supabase.co';
-  const supabaseKey = 'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8';
-  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  function updateDBStatus(event) {
+    if (event && event.type === 'vampire-db-status') lastDBStatus = event.detail;
+    if (!dbStatus) return;
+    if (!supabase) {
+      dbStatus.textContent = 'Две БД: модуль не загрузился. Обновите страницу.';
+      return;
+    }
+    const pending = Number(lastDBStatus && lastDBStatus.pending) || 0;
+    const errors = lastDBStatus && lastDBStatus.errors;
+    const hasErrors = errors && (typeof errors === 'object' ? Object.values(errors).some(Boolean) : Boolean(errors));
+    const queue = pending > 0 ? ` Сохранено локально; ожидают синхронизации: ${pending}.` : '';
+    if (!navigator.onLine) {
+      dbStatus.textContent = 'Две БД: нет сети (офлайн).' + queue + ' Синхронизация — после восстановления связи.';
+    } else if (hasErrors) {
+      dbStatus.textContent = 'Две БД: ошибка связи или синхронизации.' + queue;
+    } else if (pending > 0) {
+      dbStatus.textContent = 'Две БД:' + queue;
+    } else {
+      dbStatus.textContent = lastDBStatus ? 'Две БД: очередь синхронизации пуста.' : 'Две БД: ожидание статуса синхронизации…';
+    }
+  }
+
+  window.addEventListener('vampire-db-status', updateDBStatus);
+  window.addEventListener('online', updateDBStatus);
+  window.addEventListener('offline', updateDBStatus);
+  updateDBStatus();
+
+  if (typeof L === 'undefined' || !supabase) return;
 
   const MOSCOW_BOUNDS = [[55.5, 37.3], [56.0, 37.9]];
   const MOSCOW_CENTER = [55.751, 37.618];

@@ -1,9 +1,38 @@
 (function () {
   'use strict';
 
-  const supabaseUrl = 'https://cuvexievsoldyadbtckc.supabase.co';
-  const supabaseKey = 'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8';
-  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  const supabase = window.VampireDB;
+  const dbStatus = document.getElementById('dbStatus');
+  let lastDBStatus = supabase && typeof supabase.getStatus === 'function' ? supabase.getStatus() : null;
+
+  function updateDBStatus(event) {
+    if (event && event.type === 'vampire-db-status') lastDBStatus = event.detail;
+    if (!dbStatus) return;
+    if (!supabase) {
+      dbStatus.textContent = 'Две БД: модуль не загрузился. Обновите страницу.';
+      return;
+    }
+    const pending = Number(lastDBStatus && lastDBStatus.pending) || 0;
+    const errors = lastDBStatus && lastDBStatus.errors;
+    const hasErrors = errors && (typeof errors === 'object' ? Object.values(errors).some(Boolean) : Boolean(errors));
+    const queue = pending > 0 ? ` Сохранено локально; ожидают синхронизации: ${pending}.` : '';
+    if (!navigator.onLine) {
+      dbStatus.textContent = 'Две БД: нет сети (офлайн).' + queue + ' Синхронизация — после восстановления связи.';
+    } else if (hasErrors) {
+      dbStatus.textContent = 'Две БД: ошибка связи или синхронизации.' + queue;
+    } else if (pending > 0) {
+      dbStatus.textContent = 'Две БД:' + queue;
+    } else {
+      dbStatus.textContent = lastDBStatus ? 'Две БД: очередь синхронизации пуста.' : 'Две БД: ожидание статуса синхронизации…';
+    }
+  }
+
+  window.addEventListener('vampire-db-status', updateDBStatus);
+  window.addEventListener('online', updateDBStatus);
+  window.addEventListener('offline', updateDBStatus);
+  updateDBStatus();
+
+  if (!supabase) return;
 
   const COLORS = ['red', 'blue', 'green', 'yellow', 'black'];
   const COLOR_HEX = { red: '#e03636', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', black: '#15151a' };
@@ -16,14 +45,42 @@
   let editingId = null;
   let map, markerLayer, lineLayer;
 
-  document.getElementById('loginBtn').onclick = () => {
+  let authenticated = false;
+  function selectAdminTab(name) {
+    if (!authenticated) return;
+    const npc = name === 'npc';
+    document.getElementById('adminMapView').hidden = npc;
+    document.getElementById('adminNpcView').hidden = !npc;
+    document.getElementById('adminPanel').classList.toggle('npc-active', npc);
+    document.getElementById('adminMapTab').setAttribute('aria-selected', String(!npc));
+    document.getElementById('adminNpcTab').setAttribute('aria-selected', String(npc));
+    if (npc) {
+      const frame = document.getElementById('npcFrame');
+      // Same-origin iframe reuses the real Supabase sessions in localStorage.
+      if (!frame.hasAttribute('src')) frame.src = 'npc.html';
+    } else if (map) {
+      requestAnimationFrame(() => map.invalidateSize());
+    }
+  }
+  document.getElementById('adminMapTab').onclick = () => selectAdminTab('map');
+  document.getElementById('adminNpcTab').onclick = () => selectAdminTab('npc');
+  document.getElementById('loginBtn').onclick = async () => {
+    const button = document.getElementById('loginBtn');
     const user = document.getElementById('loginUser').value.trim();
-    const pass = document.getElementById('loginPass').value.trim();
-    if (user === 'admin' && pass === 'admin') {
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('adminPanel').style.display = 'block';
-      initAdminMap();
-    } else { alert('Неверный логин или пароль!'); }
+    const pass = document.getElementById('loginPass').value;
+    button.disabled = true;
+    try {
+      const results = await supabase.signIn(user, pass);
+      if (results.some(r => !r.error)) {
+        authenticated = true;
+        document.getElementById('loginPass').value = '';
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('adminPanel').style.display = 'block';
+        if (!map) initAdminMap();
+        selectAdminTab('map');
+      } else { alert('Неверный логин или пароль!'); }
+    } catch (error) { alert('Не удалось войти: ' + (error.message || String(error))); }
+    finally { button.disabled = false; }
   };
 
   function getDirectImageUrl(url) {

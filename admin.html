@@ -9,19 +9,36 @@
   <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="style.css" />
+  <style>
+    #adminTabs { position: fixed; inset: 54px 0 auto; height: 48px; display: flex; gap: 8px; padding: 4px 12px; box-sizing: border-box; background: #17171f; z-index: 4000; }
+    #adminTabs .btn { width: auto; min-width: 100px; margin: 0; }
+    #adminTabs [aria-selected="true"] { background: #8b1818; color: #fff; }
+    #adminMapView, #adminNpcView { position: fixed; inset: 102px 0 0; }
+    #adminMapView[hidden], #adminNpcView[hidden] { display: none; }
+    #adminMapView #map { height: 100%; width: calc(100% - 320px); }
+    #npcFrame { width: 100%; height: 100%; border: 0; display: block; }
+    #adminPanel.npc-active ~ #mobilePinOverlay, #adminPanel.npc-active ~ #mobilePinBar { display: none; }
+    @media (max-width: 768px) { #adminMapView #map { width: 100%; } }
+  </style>
 </head>
 <body>
+  <div id="dbStatus" role="status" aria-live="polite" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:10001; max-width:calc(100% - 140px); padding:8px 12px; border:1px solid #555; border-radius:8px; background:#17171f; color:#fff; font-size:12px; text-align:center; pointer-events:none;">Две БД: ожидание статуса синхронизации…</div>
 
   <div id="loginScreen">
     <div class="login-box">
       <h2>Вход в Админку</h2>
-      <div class="field"><input id="loginUser" type="text" placeholder="Логин" value="admin" /></div>
+      <div class="field"><input id="loginUser" type="email" placeholder="Email администратора в обеих БД" autocomplete="username" /></div>
       <div class="field"><input id="loginPass" type="password" placeholder="Пароль" /></div>
       <button id="loginBtn" class="btn btn-primary">Войти</button>
     </div>
   </div>
 
   <div id="adminPanel" style="display: none;">
+    <nav id="adminTabs" role="tablist" aria-label="Разделы админки">
+      <button id="adminMapTab" class="btn" type="button" role="tab" aria-selected="true" aria-controls="adminMapView">Карта</button>
+      <button id="adminNpcTab" class="btn" type="button" role="tab" aria-selected="false" aria-controls="adminNpcView">NPC</button>
+    </nav>
+    <section id="adminMapView" role="tabpanel" aria-labelledby="adminMapTab">
     <aside id="sidebar" class="open" style="transform: translateX(0);">
       <div class="sidebar-header">
         <h1>Управление</h1>
@@ -109,6 +126,10 @@
       </div>
       <div id="linesList"></div>
     </div>
+    </section>
+    <section id="adminNpcView" role="tabpanel" aria-labelledby="adminNpcTab" hidden>
+      <iframe id="npcFrame" title="Персонажи NPC" loading="lazy"></iframe>
+    </section>
   </div>
 
   <div id="mobilePinOverlay">
@@ -126,6 +147,7 @@
   <script src="leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="dual-db.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

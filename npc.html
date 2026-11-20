@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Чарлист НПС — V20</title>
+  <link rel="stylesheet" href="npc.css" />
+</head>
+<body>
+  <div class="sheet-container">
+
+  <header class="char-header">
+    <section id="npcLibrary">
+      <h1>Персонажи хроники</h1>
+      <p class="hint-text">Откройте НПС для игры или создайте нового.</p>
+      <div class="toolbar"><button id="newNpcBtn" class="btn-primary">＋ Создать НПС</button><button id="importNpcBtn">Импорт JSON</button></div>
+      <input id="npcSearch" placeholder="Поиск по имени или клану" aria-label="Поиск НПС">
+      <div id="npcCards"></div>
+    </section>
+    <div id="characterActions" hidden>
+      <div class="toolbar"><button id="backNpcBtn" title="Закрыть карточку; изменения сохраняются автоматически">← Закрыть</button><button id="editNpcBtn" class="btn-primary">Редактировать</button>
+        <details id="moreActions"><summary>Ещё</summary><div class="action-menu">
+          <button id="duplicateNpcBtn">Дублировать НПС</button><button id="exportNpcBtn">Экспорт JSON</button>
+          <button id="undoBtn">Отменить последнее изменение</button><button id="deleteNpcBtn" class="danger">Удалить НПС</button>
+        </div></details>
+      </div>
+      <h1 id="characterTitle"></h1><p id="modeHint" class="hint-text"></p>
+    </div>
+    <select id="npcSelect" hidden aria-label="Персонаж"></select>
+    <input id="importNpcFile" type="file" accept=".json,application/json" hidden>
+    <p id="saveStatus" role="status"></p>
+    <nav class="tabs" aria-label="Разделы карточки">
+      <button type="button" class="tab active" data-tab="base">Основные данные</button>
+      <button type="button" class="tab" data-tab="resources">Дисциплины и ресурсы</button>
+      <button type="button" class="tab" data-tab="bio">Биография</button>
+    </nav>
+  </header>
+
+  <main class="content-container">
+    <div class="tab-content active" data-content="base">
+      <section class="section">
+        <h2>Основные данные</h2>
+        <div class="grid-3">
+      <div class="field"><label>Имя</label><input type="text" class="input-name" placeholder="Имя" /></div>
+      <div class="field"><label>Игрок</label><input type="text" class="input-player" placeholder="Игрок" /></div>
+      <div class="field"><label>Хроника</label><input type="text" class="input-chronicle" placeholder="Хроника" /></div>
+      <div class="field"><label>Натура</label><input type="text" class="input-nature" placeholder="Натура" /></div>
+      <div class="field"><label>Маска</label><input type="text" class="input-demeanor" placeholder="Маска" /></div>
+      <div class="field"><label>Амплуа</label><input type="text" class="input-archetype" placeholder="Амплуа" /></div>
+      <div class="field"><label>Клан</label><input type="text" class="input-clan" placeholder="Клан" /></div>
+      <div class="field">
+        <label>Поколение (15-1)</label>
+        <input type="number" id="generationInput" min="1" max="15" value="13" class="input-generation" />
+      </div>
+      <div class="field"><label>Сир</label><input type="text" class="input-sire" placeholder="Сир" /></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Характеристики · минимум 1</h2>
+        <div class="section-sub">
+          <h3>Физические</h3>
+          <div class="dot-row"><label>Сила</label><div class="dots" data-type="attr" data-name="str"></div></div>
+          <div class="dot-row"><label>Ловкость</label><div class="dots" data-type="attr" data-name="dex"></div></div>
+          <div class="dot-row"><label>Выносливость</label><div class="dots" data-type="attr" data-name="sta"></div></div>
+        </div>
+        <div class="section-sub">
+          <h3>Социальные</h3>
+          <div class="dot-row"><label>Обаяние</label><div class="dots" data-type="attr" data-name="cha"></div></div>
+          <div class="dot-row"><label>Манипуляция</label><div class="dots" data-type="attr" data-name="man"></div></div>
+          <div class="dot-row"><label>Привлекательность</label><div class="dots" data-type="attr" data-name="app"></div></div>
+        </div>
+        <div class="section-sub">
+          <h3>Ментальные</h3>
+          <div class="dot-row"><label>Восприятие</label><div class="dots" data-type="attr" data-name="per"></div></div>
+          <div class="dot-row"><label>Интеллект</label><div class="dots" data-type="attr" data-name="int"></div></div>
+          <div class="dot-row"><label>Смекалка</label><div class="dots" data-type="attr" data-name="wit"></div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <h2>Способности · предел зависит от поколения</h2>
+          <label class="toggle-switch">
+            <input type="checkbox" id="hideUntrained" />
+            <span>Скрывать невладеемые</span>
+          </label>
+        </div>
+
+        <details class="ability-group">
+          <summary>Таланты</summary>
+          <div class="grid-2">
+            <div class="dot-row"><label>Атлетика</label><div class="dots" data-type="talent" data-name="athletics"></div></div>
+            <div class="dot-row"><label>Бдительность</label><div class="dots" data-type="talent" data-name="awareness"></div></div>
+            <div class="dot-row"><label>Драка</label><div class="dots" data-type="talent" data-name="brawl"></div></div>
+            <div class="dot-row"><label>Запугивание</label><div class="dots" data-type="talent" data-name="intimidation"></div></div>
+            <div class="dot-row"><label>Красноречие</label><div class="dots" data-type="talent" data-name="expression"></div></div>
+            <div class="dot-row"><label>Лидерство</label><div class="dots" data-type="talent" data-name="leadership"></div></div>
+            <div class="dot-row"><label>Уличное чутьё</label><div class="dots" data-type="talent" data-name="streetwise"></div></div>
+            <div class="dot-row"><label>Хитрость</label><div class="dots" data-type="talent" data-name="subterfuge"></div></div>
+            <div class="dot-row"><label>Шестое чувство</label><div class="dots" data-type="talent" data-name="sixth_sense"></div></div>
+            <div class="dot-row"><label>Эмпатия</label><div class="dots" data-type="talent" data-name="empathy"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="talent" data-name="custom_1"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="talent" data-name="custom_2"></div></div>
+          </div>
+        </details>
+
+        <details class="ability-group">
+          <summary>Навыки</summary>
+          <div class="grid-2">
+            <div class="dot-row"><label>Вождение</label><div class="dots" data-type="skill" data-name="drive"></div></div>
+            <div class="dot-row"><label>Воровство</label><div class="dots" data-type="skill" data-name="larceny"></div></div>
+            <div class="dot-row"><label>Выживание</label><div class="dots" data-type="skill" data-name="survival"></div></div>
+            <div class="dot-row"><label>Исполнение</label><div class="dots" data-type="skill" data-name="performance"></div></div>
+            <div class="dot-row"><label>Обращение с животными</label><div class="dots" data-type="skill" data-name="animal_ken"></div></div>
+            <div class="dot-row"><label>Ремесло</label><div class="dots" data-type="skill" data-name="craft"></div></div>
+            <div class="dot-row"><label>Скрытность</label><div class="dots" data-type="skill" data-name="stealth"></div></div>
+            <div class="dot-row"><label>Стрельба</label><div class="dots" data-type="skill" data-name="firearms"></div></div>
+            <div class="dot-row"><label>Фехтование</label><div class="dots" data-type="skill" data-name="melee"></div></div>
+            <div class="dot-row"><label>Этикет</label><div class="dots" data-type="skill" data-name="etiquette"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="skill" data-name="custom_3"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="skill" data-name="custom_4"></div></div>
+          </div>
+        </details>
+
+        <details class="ability-group">
+          <summary>Знания</summary>
+          <div class="grid-2">
+            <div class="dot-row"><label>Гуманитарные науки</label><div class="dots" data-type="knowledge" data-name="academics"></div></div>
+            <div class="dot-row"><label>Естественные науки</label><div class="dots" data-type="knowledge" data-name="science"></div></div>
+            <div class="dot-row"><label>Информатика</label><div class="dots" data-type="knowledge" data-name="computer"></div></div>
+            <div class="dot-row"><label>Медицина</label><div class="dots" data-type="knowledge" data-name="medicine"></div></div>
+            <div class="dot-row"><label>Оккультизм</label><div class="dots" data-type="knowledge" data-name="occult"></div></div>
+            <div class="dot-row"><label>Политика</label><div class="dots" data-type="knowledge" data-name="politics"></div></div>
+            <div class="dot-row"><label>Расследование</label><div class="dots" data-type="knowledge" data-name="investigation"></div></div>
+            <div class="dot-row"><label>Финансы</label><div class="dots" data-type="knowledge" data-name="finance"></div></div>
+            <div class="dot-row"><label>Электроника</label><div class="dots" data-type="knowledge" data-name="electronics"></div></div>
+            <div class="dot-row"><label>Юриспруденция</label><div class="dots" data-type="knowledge" data-name="law"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="knowledge" data-name="custom_5"></div></div>
+            <div class="dot-row dynamic-row"><input type="text" placeholder="Своё..." class="custom-name" /><div class="dots" data-type="knowledge" data-name="custom_6"></div></div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <!-- Вкладка 2: Дисциплины и ресурсы -->
+    <div class="tab-content" data-content="resources">
+      <section class="section">
+        <h2>Дисциплины</h2>
+        <div id="disciplinesList"></div>
+        <button class="btn-add" id="addDisciplineBtn">+ Добавить дисциплину</button>
+      </section>
+
+      <section class="section">
+        <h2>Факты биографии (макс 5)</h2>
+        <div id="factsList"></div>
+        <button class="btn-add" id="addFactBtn">+ Добавить факт</button>
+      </section>
+
+      <section class="section grid-2">
+        <div>
+          <h2>Достоинства</h2>
+          <div id="meritsList"></div>
+          <button class="btn-add" id="addMeritBtn">+ Добавить</button>
+        </div>
+        <div>
+          <h2>Недостатки</h2>
+          <div id="flawsList"></div>
+          <button class="btn-add" id="addFlawBtn">+ Добавить</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Добродетели (0-5)</h2>
+        <div class="grid-3">
+          <div class="dot-row"><label>Совесть/Решимость</label><div class="dots" data-type="virtue" data-name="conscience"></div></div>
+          <div class="dot-row"><label>Самоконтроль/Инстинкты</label><div class="dots" data-type="virtue" data-name="self_control"></div></div>
+          <div class="dot-row"><label>Смелость</label><div class="dots" data-type="virtue" data-name="courage"></div></div>
+        </div>
+      </section>
+
+      <section class="section grid-2">
+        <div>
+          <h2>Человечность / Путь</h2>
+          <div class="field">
+            <label>Значение (0-10)</label>
+            <input type="number" id="humanityInput" min="0" max="10" value="7" class="num-input humanity-input" />
+          </div>
+          <div class="field">
+            <label>Столп</label>
+            <div class="row-inputs">
+              <input type="text" id="pillarText" placeholder="Название" class="input-pillar-text" />
+              <input type="number" id="pillarValue" placeholder="( )" class="input-pillar-value" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2>Опыт</h2>
+          <div class="field">
+            <label>Всего</label>
+            <input type="number" id="experienceTotal" value="0" class="num-input" />
+          </div>
+          <div class="field">
+            <label>Потрачено</label>
+            <input type="number" id="experienceSpent" value="0" class="num-input" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="field"><label for="flawInput">Изъян</label><input id="flawInput" type="text" placeholder="Изъян" /></div>
+      </section>
+
+      <section class="section grid-2">
+        <div>
+          <h2>Воля и Кровь</h2>
+          <div class="field">
+            <label>Максимум Воли (0-10)</label>
+            <input type="number" id="willpowerMax" min="0" max="10" value="5" class="num-input" />
+          </div>
+          <div class="dot-row"><label>Текущая Воля</label><div class="dots" data-type="wp" data-name="current"></div></div>
+
+          <div class="field" style="margin-top:20px;">
+            <label for="bloodCurrent">Запас крови (макс: <span id="bloodMaxLabel">10</span>)</label>
+            <input type="number" id="bloodCurrent" min="0" value="10" class="num-input blood-input" /><div id="bloodBoxes" class="dots" aria-label="Запас крови"></div>
+          </div>
+          <div class="field">
+            <label>Предел траты в ход</label>
+            <input type="number" id="bloodSpend" value="1" readonly class="num-input" style="opacity:0.7;" />
+          </div>
+        </div>
+
+        <div>
+          <h2>Здоровье (7 строк)</h2>
+          <div class="health-tracker">
+            <div class="health-row"><span>Помят (0)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>Легко ранен (-1)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>Ранен (-1)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>Серьёзно ранен (-2)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>Тяжело ранен (-2)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>Едва жив (-5)</span><div class="health-box" data-state="0"></div></div>
+            <div class="health-row"><span>При смерти</span><div class="health-box" data-state="0"></div></div>
+          </div>
+          <p class="hint-text">Клик по квадратику: Легкая (/) -> Тяжелая (X) -> Губительная (Ж) -> Пусто</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- Вкладка 3: Биография -->
+    <div class="tab-content" data-content="bio">
+      <section class="section">
+        <h2>Биография</h2>
+        <button type="button" class="portrait-button" id="openPhotoBtn" aria-label="Изменить портрет" title="Изменить портрет">
+          <img id="portraitImage" alt="Портрет персонажа" />
+          <span>⚙ Изменить портрет</span>
+        </button>
+        <div class="field">
+          <label>Биография / Описание</label>
+          <textarea rows="6" class="textarea-bio"></textarea>
+        </div>
+        <div class="field">
+          <label>Заметки (травмы, эффекты, сюжет)</label>
+          <textarea rows="4" class="textarea-notes"></textarea>
+        </div>
+      </section>
+    </div>
+
+  </main>
+  </div>
+
+  <!-- Модальное окно для портрета -->
+  <div id="photoModal" class="modal">
+    <div class="modal-content">
+      <button type="button" class="close-btn" aria-label="Закрыть">&times;</button>
+      <h3>Добавить фото</h3>
+      <div class="photo-preview" id="photoPreview">
+        <img id="currentPhoto" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMmEyYTJhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzg4ODg4OCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==" alt="Портрет" />
+      </div>
+      <div class="field">
+        <label>URL изображения</label>
+        <input type="url" id="photoUrlInput" placeholder="https://..." />
+      </div>
+      <button class="btn btn-primary" id="savePhotoBtn">Сохранить</button>
+      <button class="btn" id="clearPhotoBtn">Очистить</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="dual-db.js"></script>
+  <script src="npc.js"></script>
+</body>
+</html>
