@@ -1,9 +1,11 @@
 (function () {
   'use strict';
   
-  const supabase = window.VampireDB;
-  // Diagnostic messages belong in the console, never over the map.
-  document.getElementById('dbStatus')?.remove();
+  try { localStorage.removeItem('vampiremap.dual.v1'); } catch (error) { console.warn('[VampireMap] Не удалось удалить старую двухбазную очередь', error); }
+  const supabase = window.supabase?.createClient(
+    'https://cuvexievsoldyadbtckc.supabase.co',
+    'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8'
+  );
 
   if (typeof L === 'undefined' || !supabase) return;
 

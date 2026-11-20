@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
+  try { localStorage.removeItem('vampiremap.dual.v1'); } catch (error) { console.warn('[VampireMap] Не удалось удалить старую двухбазную очередь', error); }
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
   const KEY = 'vampiremap.npcs.v1';
@@ -22,14 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (nosferatu()) $$('[data-type="attr"][data-name="app"] button').forEach(e => { e.disabled = true; });
   }
   function openCharacter(id, edit = false) {
-    window.VampireLog?.('NPC_OPEN',{id,mode:edit?'edit':'play'});
+    console.info('[VampireMap] NPC_OPEN', { id, mode: edit ? 'edit' : 'play' });
     store.active = id; undo = []; editing = edit;
     $('#characterActions').hidden = false; $('#moreActions').open = false;
     $('#npcLibrary').hidden = true; $('.content-container').hidden = false; $('.tabs').hidden = false;
     render(); activate('base');
   }
   function library() {
-    window.VampireLog?.('NPC_LIST_OPEN',{count:store.characters.length});
+    console.info('[VampireMap] NPC_LIST_OPEN', { count: store.characters.length });
     $('#characterActions').hidden = true; $('#moreActions').open = false;
     $('#npcLibrary').hidden = false; $('.content-container').hidden = true; $('.tabs').hidden = true;
     const root = $('#npcCards'); root.replaceChildren();
@@ -49,19 +50,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const blank = () => ({ id: uid(), schema_version: 1, ruleset: 'V20', fields: clone(defaults), ratings: Object.fromEntries(baseDots.filter(e => e.dataset.type === 'attr').map(e => [`attr.${e.dataset.name}`, 1])), lists: { disciplines: [], facts: [], merits: [], flaws: [], talent: [], skill: [], knowledge: [] }, health: [0,0,0,0,0,0,0], portrait: null });
   const current = () => store.characters.find(c => c.id === store.active);
   let lastStatus = '';
-  const status = text => { if (text !== lastStatus) { window.VampireLog?.('NPC_SAVE_STATUS', {message:text}); lastStatus = text; } };
+  const status = text => { if (text !== lastStatus) { console.info('[VampireMap] NPC_SAVE_STATUS', { message: text }); lastStatus = text; } };
   let recoveryPending = null, localError = '', cloudError = '', fetching = true;
   let snapshots = new Map();
   const changedDuringFetch = new Set(), knownIDs = new Set(), confirmed = new Map(), revisions = new Map();
-  const db = () => window.VampireDB;
-  const pending = id => !!db()?.hasPending?.('npcs', id);
+  // NPCs use the original Supabase only. Edits are cached before network requests.
+  const npcClient = window.supabase?.createClient(
+    'https://cuvexievsoldyadbtckc.supabase.co',
+    'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8'
+  );
+  const queueName = 'vampiremap.npc-primary-queue.v1';
+  let npcQueue = [];
+  try { npcQueue = JSON.parse(localStorage.getItem(queueName) || '[]'); if (!Array.isArray(npcQueue)) throw Error('Invalid queue'); }
+  catch (error) { console.error('[VampireMap] NPC_QUEUE_READ_FAILED', error); npcQueue = []; }
+  let sending = false, sendTimer;
+  const db = () => npcClient && ({
+    getStatus: () => ({ pending: npcQueue.length, errors: [] }),
+    hasPending: (table, id) => table === 'npcs' && npcQueue.some(item => item.id === id),
+    put: (table, row) => enqueueCloud(row),
+    remove: (table, id) => enqueueCloud({ id, deleted_at: new Date().toISOString() }),
+    read: async () => {
+      try {
+        const { data, error } = await npcClient.from('npcs').select('*');
+        if (error) throw error;
+        console.info('[VampireMap] NPC_DB_READ_OK', { count: data.length });
+        return { data: [...data.filter(row => !npcQueue.some(item => item.id === row.id)), ...npcQueue.map(item => item.row)], error: null };
+      } catch (error) { console.error('[VampireMap] NPC_DB_READ_FAILED', error); return { data: [], error }; }
+    }
+  });
+  function enqueueCloud(row) {
+    const previous = npcQueue;
+    npcQueue = [...npcQueue.filter(item => item.id !== row.id), { id: row.id, row }];
+    try { localStorage.setItem(queueName, JSON.stringify(npcQueue)); }
+    catch (error) { npcQueue = previous; return Promise.resolve({ error }); }
+    console.info('[VampireMap] NPC_WRITE_QUEUED', { id: row.id, pending: npcQueue.length });
+    clearTimeout(sendTimer); sendTimer = setTimeout(() => void sendCloud(), 600);
+    return Promise.resolve({ data: [row], error: null });
+  }
+  async function sendCloud() {
+    if (sending || !npcClient || !navigator.onLine || !npcQueue.length) return;
+    sending = true;
+    try {
+      for (const item of [...npcQueue]) {
+        const { error } = await npcClient.from('npcs').upsert(item.row, { onConflict: 'id' });
+        if (error) { console.error('[VampireMap] NPC_DB_WRITE_FAILED', { id: item.id, error }); break; }
+        console.info('[VampireMap] NPC_DB_WRITE_OK', { id: item.id });
+        npcQueue = npcQueue.filter(queued => queued !== item);
+        try { localStorage.setItem(queueName, JSON.stringify(npcQueue)); }
+        catch (saveError) { console.error('[VampireMap] NPC_QUEUE_SAVE_FAILED', saveError); break; }
+      }
+    } catch (error) { console.error('[VampireMap] NPC_DB_WRITE_FAILED', error); }
+    finally { sending = false; saveStatus(); }
+  }
+  const pending = id => npcQueue.some(item => item.id === id);
   function saveStatus() {
     if (localError) { status(localError); return; }
     const connection = db()?.getStatus?.();
     const syncError = connection?.errors?.filter(Boolean).join('; ') || cloudError;
     const queued = [...knownIDs].some(pending);
-    const both = store.characters.length > 0 && store.characters.every(c => confirmed.get(c.id) === JSON.stringify(c));
-    status('На устройстве' + (syncError ? ' · ошибка БД: ' + syncError : queued ? ' · ожидает синхронизации' : fetching && db() ? ' · чтение БД…' : both ? ' + в БД' : ' · локально (синхронизация не подтверждена)'));
+    const savedInCloud = store.characters.length > 0 && store.characters.every(c => confirmed.get(c.id) === JSON.stringify(c));
+    status('На устройстве' + (syncError ? ' · ошибка БД: ' + syncError : queued ? ' · ожидает отправки' : fetching && db() ? ' · чтение БД…' : savedInCloud ? ' + в Supabase' : ' · облачное сохранение не подтверждено'));
   }
   function writeLocal() {
     try {
@@ -70,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(KEY + '.recovery.' + Date.now(), recoveryPending);
         recoveryPending = null;
       }
-      localStorage.setItem(KEY, JSON.stringify(store)); localError = ''; window.VampireLog?.('NPC_LOCAL_SAVED',{count:store.characters.length,active:store.active});
+      localStorage.setItem(KEY, JSON.stringify(store)); localError = ''; console.info('[VampireMap] NPC_LOCAL_SAVED', { count: store.characters.length, active: store.active });
     } catch { localError = 'Не удалось сохранить на устройстве! Экспортируйте JSON.'; }
   }
   function enqueue(id, character) {
@@ -78,8 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fetching) changedDuringFetch.add(id);
     if (!db()) { cloudError = 'модуль недоступен; сохранено только локально'; return; }
     try {
-      // Call now, NOT in a timer: dual-db persists its outbox synchronously,
-      // then debounces network writes by 600 ms. Closing the tab loses no queue.
+      // Queue to local storage synchronously; network write follows after a short delay.
       const operation = character
         ? db().put('npcs', { id, data: clone(character), schema_version: 1 })
         : db().remove('npcs', id);
@@ -143,8 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result?.error) cloudError = result.error.message || String(result.error);
       else cloudError = '';
       mergeRows(result?.data);
-      // Cached rows can accompany a failed/partial read. Do not infer absence
-      // until both providers were read successfully; retry on reconnect.
+      // Cached rows can accompany a failed read; only a confirmed response
+      // tells us which local NPCs are not yet in the single cloud database.
       const readErrors = db().getStatus?.()?.errors?.filter(Boolean) || [];
       if (!result?.error && Array.isArray(result?.data) && !readErrors.length) {
         // Include tombstones and malformed rows: their IDs are not local-only.
@@ -317,13 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
   store.characters.forEach(c => knownIDs.add(c.id));
   if (failed) localError = 'Не удалось прочитать сохранение. Исходная запись пока не перезаписана.';
   else writeLocal(); // Save migrated legacy IDs once so the UUID survives reload.
-  window.addEventListener('vampire-db-change', event => {
-    if (event.detail?.table !== 'npcs') return;
-    cloudError = '';
-    mergeRows(event.detail.rows);
-  });
-  window.addEventListener('vampire-db-status', saveStatus);
-  window.addEventListener('online', () => { void loadCloud(); });
+  window.addEventListener('online', () => { void sendCloud(); void loadCloud(); });
   saveStatus();
   void loadCloud();
+  void sendCloud();
 });

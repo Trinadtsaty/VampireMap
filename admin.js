@@ -1,8 +1,11 @@
 (function () {
   'use strict';
 
-  const supabase = window.VampireDB;
-  document.getElementById('dbStatus')?.remove(); // Diagnostics are console-only.
+  try { localStorage.removeItem('vampiremap.dual.v1'); } catch (error) { console.warn('[VampireMap] Не удалось удалить старую двухбазную очередь', error); }
+  const supabase = window.supabase?.createClient(
+    'https://cuvexievsoldyadbtckc.supabase.co',
+    'sb_publishable_8QFv2y1yU7kBTF_bJThlpQ_aAbLqCx8'
+  );
 
   if (!supabase) return;
 
@@ -28,7 +31,7 @@
     document.getElementById('adminNpcTab').setAttribute('aria-selected', String(npc));
     if (npc) {
       const frame = document.getElementById('npcFrame');
-      // Same-origin iframe reuses the real Supabase sessions in localStorage.
+      // The NPC page opens inside the admin tab; its data is stored locally.
       if (!frame.hasAttribute('src')) frame.src = 'npc.html';
     } else if (map) {
       requestAnimationFrame(() => map.invalidateSize());
@@ -44,7 +47,7 @@
     try {
       // Legacy UI gate only: does not grant database permissions or bypass RLS.
       if (user === 'admin' && pass === 'admin') {
-        window.VampireLog?.('ADMIN_UI_LOGIN', {mode: 'legacy-local', databaseAuth: false});
+        console.info('[VampireMap] ADMIN_UI_LOGIN: admin/admin opens the UI; database access depends on RLS');
         authenticated = true;
         document.getElementById('loginPass').value = '';
         document.getElementById('loginScreen').style.display = 'none';
