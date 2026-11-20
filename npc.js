@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function enqueue(id, character) {
     knownIDs.add(id); confirmed.delete(id);
     if (fetching) changedDuringFetch.add(id);
-    if (!db()) { cloudError = 'модуль недоступен; сохранено только локально'; return; }
+    if (!db()) { cloudError = 'supabase-js не загрузился; сохранено только локально'; return; }
     try {
       // Queue to local storage synchronously; network write follows after a short delay.
       const operation = character
