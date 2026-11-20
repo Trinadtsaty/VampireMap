@@ -87,21 +87,45 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(sendTimer); sendTimer = setTimeout(() => void sendCloud(), 600);
     return Promise.resolve({ data: [row], error: null });
   }
+
   async function sendCloud() {
     if (sending || !npcClient || !navigator.onLine || !npcQueue.length) return;
     sending = true;
     try {
       for (const item of [...npcQueue]) {
-        const { error } = await npcClient.from('npcs').upsert(item.row, { onConflict: 'id' });
-        if (error) { console.error('[VampireMap] NPC_DB_WRITE_FAILED', { id: item.id, error }); break; }
+        let result;
+        if (item.row && item.row.deleted_at) {
+          // Жёсткое удаление из БД
+          result = await npcClient.from('npcs').delete().eq('id', item.id);
+        } else if (item.row && item.row.data) {
+          // Обычное создание/обновление
+          result = await npcClient.from('npcs').upsert(item.row, { onConflict: 'id' });
+        } else {
+          // Битый элемент без data и без deleted_at — просто выкидываем из очереди
+          console.warn('[VampireMap] NPC_QUEUE_BAD_ITEM', item);
+          npcQueue = npcQueue.filter(q => q !== item);
+          try { localStorage.setItem(queueName, JSON.stringify(npcQueue)); } catch (e) {}
+          continue;
+        }
+
+        if (result.error) {
+          console.error('[VampireMap] NPC_DB_WRITE_FAILED', { id: item.id, error: result.error });
+          break;
+        }
+
         console.info('[VampireMap] NPC_DB_WRITE_OK', { id: item.id });
         npcQueue = npcQueue.filter(queued => queued !== item);
         try { localStorage.setItem(queueName, JSON.stringify(npcQueue)); }
         catch (saveError) { console.error('[VampireMap] NPC_QUEUE_SAVE_FAILED', saveError); break; }
       }
-    } catch (error) { console.error('[VampireMap] NPC_DB_WRITE_FAILED', error); }
-    finally { sending = false; saveStatus(); }
+    } catch (error) {
+      console.error('[VampireMap] NPC_DB_WRITE_FAILED', error);
+    } finally {
+      sending = false;
+      saveStatus();
+    }
   }
+
   const pending = id => npcQueue.some(item => item.id === id);
   function saveStatus() {
     if (localError) { status(localError); return; }
