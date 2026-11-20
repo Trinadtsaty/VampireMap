@@ -42,8 +42,9 @@
     const pass = document.getElementById('loginPass').value;
     button.disabled = true;
     try {
-      const results = await supabase.signIn(user, pass);
-      if (results.some(r => !r.error)) {
+      // Legacy UI gate only: does not grant database permissions or bypass RLS.
+      if (user === 'admin' && pass === 'admin') {
+        window.VampireLog?.('ADMIN_UI_LOGIN', {mode: 'legacy-local', databaseAuth: false});
         authenticated = true;
         document.getElementById('loginPass').value = '';
         document.getElementById('loginScreen').style.display = 'none';
